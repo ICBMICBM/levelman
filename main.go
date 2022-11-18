@@ -3,10 +3,12 @@ package main
 import (
 	"encoding/csv"
 	"fmt"
+	"golang.org/x/exp/maps"
 	"io"
 	"log"
 	_ "net/http/pprof"
 	"os"
+	"sync"
 )
 
 var Commit string = "Not committed"
@@ -31,9 +33,8 @@ func main() {
 	fmt.Printf("Git revision %s\n", Commit)
 	fmt.Printf("Built @ %s\n", Time)
 	writeMaps("./test_data/in.csv", 0, 1, true)
-	res := countDirect()
-	Logger.Println(ReffMap)
-	Logger.Println(InvMap)
+	directMap := countDirect()
+	res := countTotal(directMap)
 	Logger.Println(res)
 }
 
@@ -78,4 +79,49 @@ func countDirect() map[string]int {
 		}
 	}
 	return directMap
+}
+
+func countTotal(directMap map[string]int) map[string]int {
+	pipe := make(chan map[string]int)
+	done := make(chan map[string]int)
+	go countTotalProducer(directMap, pipe)
+	go countTotalConsumer(pipe, done)
+	return <-done
+}
+
+func countTotalProducer(directMap map[string]int, pipe chan<- map[string]int) {
+	var wg sync.WaitGroup
+
+	count := func(directMap map[string]int, user string) {
+		pipe <- countMemberTotal(directMap, user)
+		wg.Done()
+	}
+
+	for u, _ := range ReffMap {
+		wg.Add(1)
+		go count(directMap, u)
+	}
+	wg.Wait()
+	close(pipe)
+}
+
+func countTotalConsumer(pipe <-chan map[string]int, result chan<- map[string]int) {
+	totalResult := make(map[string]int)
+	for res := range pipe {
+		maps.Copy(totalResult, res)
+	}
+	result <- totalResult
+}
+
+func countMemberTotal(directMap map[string]int, user string) map[string]int {
+	if direct, ok := directMap[user]; ok {
+		nextLevel := ReffMap[user]
+		nextLevelCount := 0
+		for _, n := range nextLevel {
+			nextLevelCount += countMemberTotal(directMap, n)[n]
+		}
+		return map[string]int{user: direct + nextLevelCount}
+	} else {
+		return map[string]int{user: 0}
+	}
 }
