@@ -6,7 +6,7 @@ clean:
 
 build:
 	@go fmt
-	@go build -ldflags="-X main.Commit=$(shell git rev-parse HEAD)" -ldflags="-X main.Time=$(shell date --iso=seconds)" -o ./target/levelman
+	@go build -ldflags="-X main.Commit=$(shell git rev-parse HEAD) -X main.Time=$(shell date --iso=seconds)" -o ./target/levelman
 
 run: build
 	@./target/levelman
