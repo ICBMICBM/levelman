@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	"io"
 	"log"
 	_ "net/http/pprof"
@@ -93,7 +94,7 @@ func countTotalProducer(directMap map[string]int, pipe chan<- map[string]int) {
 	var wg sync.WaitGroup
 
 	count := func(directMap map[string]int, user string) {
-		pipe <- countMemberTotal(directMap, user)
+		pipe <- countMemberTotal(directMap, user, []string{})
 		wg.Done()
 	}
 
@@ -113,12 +114,16 @@ func countTotalConsumer(pipe <-chan map[string]int, result chan<- map[string]int
 	result <- totalResult
 }
 
-func countMemberTotal(directMap map[string]int, user string) map[string]int {
+func countMemberTotal(directMap map[string]int, user string, used []string) map[string]int {
 	if direct, ok := directMap[user]; ok {
+		if slices.Contains(used, user) {
+			Logger.Fatalln("Loop detected @ user:", user, ", path is", used)
+		}
 		nextLevel := ReffMap[user]
+		used = append(used, user)
 		nextLevelCount := 0
 		for _, n := range nextLevel {
-			nextLevelCount += countMemberTotal(directMap, n)[n]
+			nextLevelCount += countMemberTotal(directMap, n, used)[n]
 		}
 		return map[string]int{user: direct + nextLevelCount}
 	} else {
