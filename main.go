@@ -7,8 +7,8 @@ import (
 	"golang.org/x/exp/slices"
 	"io"
 	"log"
-	_ "net/http/pprof"
 	"os"
+	"sort"
 	"sync"
 )
 
@@ -35,8 +35,14 @@ func main() {
 	fmt.Printf("Built @ %s\n", Time)
 	writeMaps("./test_data/in.csv", 0, 1, true)
 	directMap := countDirect()
+	Logger.Println(directMap)
 	res := countTotal(directMap)
 	Logger.Println(res)
+}
+
+func MaxIntSlice(v []int) int {
+	sort.Ints(v)
+	return v[len(v)-1]
 }
 
 func writeMaps(path string, refererColumn int, refereeColumn int, hasHeader bool) {
@@ -82,19 +88,19 @@ func countDirect() map[string]int {
 	return directMap
 }
 
-func countTotal(directMap map[string]int) map[string]int {
-	pipe := make(chan map[string]int)
-	done := make(chan map[string]int)
+func countTotal(directMap map[string]int) map[string][]int {
+	pipe := make(chan map[string][]int)
+	result := make(chan map[string][]int)
 	go countTotalProducer(directMap, pipe)
-	go countTotalConsumer(pipe, done)
-	return <-done
+	go countTotalConsumer(pipe, result)
+	return <-result
 }
 
-func countTotalProducer(directMap map[string]int, pipe chan<- map[string]int) {
+func countTotalProducer(directMap map[string]int, pipe chan<- map[string][]int) {
 	var wg sync.WaitGroup
 
 	count := func(directMap map[string]int, user string) {
-		pipe <- countMemberTotal(directMap, user, []string{})
+		pipe <- countMemberTotal(directMap, user, []string{}, 0)
 		wg.Done()
 	}
 
@@ -106,15 +112,15 @@ func countTotalProducer(directMap map[string]int, pipe chan<- map[string]int) {
 	close(pipe)
 }
 
-func countTotalConsumer(pipe <-chan map[string]int, result chan<- map[string]int) {
-	totalResult := make(map[string]int)
+func countTotalConsumer(pipe <-chan map[string][]int, result chan<- map[string][]int) {
+	totalResult := make(map[string][]int)
 	for res := range pipe {
 		maps.Copy(totalResult, res)
 	}
 	result <- totalResult
 }
 
-func countMemberTotal(directMap map[string]int, user string, used []string) map[string]int {
+func countMemberTotal(directMap map[string]int, user string, used []string, maxDistance int) map[string][]int {
 	if direct, ok := directMap[user]; ok {
 		if slices.Contains(used, user) {
 			Logger.Fatalln("Loop detected @ user:", user, ", path is", used)
@@ -122,11 +128,15 @@ func countMemberTotal(directMap map[string]int, user string, used []string) map[
 		nextLevel := ReffMap[user]
 		used = append(used, user)
 		nextLevelCount := 0
+		var distances []int
+
 		for _, n := range nextLevel {
-			nextLevelCount += countMemberTotal(directMap, n, used)[n]
+			tempResult := countMemberTotal(directMap, n, used, maxDistance)[n]
+			nextLevelCount += tempResult[0]
+			distances = append(distances, tempResult[1])
 		}
-		return map[string]int{user: direct + nextLevelCount}
+		return map[string][]int{user: {direct + nextLevelCount, MaxIntSlice(distances) + 1}}
 	} else {
-		return map[string]int{user: 0}
+		return map[string][]int{user: {0, 0}}
 	}
 }
