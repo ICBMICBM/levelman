@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"sort"
+	"strconv"
 	"sync"
 )
 
@@ -38,9 +39,17 @@ func main() {
 	Logger.Println(directMap)
 	res := countTotal(directMap)
 	Logger.Println(res)
+	writeCSV("./test_data/out.csv", res)
+}
+func arrayToString(a []int) []string {
+	var newSlice []string
+	for _, v := range a {
+		newSlice = append(newSlice, strconv.Itoa(v))
+	}
+	return newSlice
 }
 
-func MaxIntSlice(v []int) int {
+func maxIntSlice(v []int) int {
 	sort.Ints(v)
 	return v[len(v)-1]
 }
@@ -132,11 +141,26 @@ func countMemberTotal(directMap map[string]int, user string, used []string, maxD
 
 		for _, n := range nextLevel {
 			tempResult := countMemberTotal(directMap, n, used, maxDistance)[n]
-			nextLevelCount += tempResult[0]
-			distances = append(distances, tempResult[1])
+			nextLevelCount += tempResult[1]
+			distances = append(distances, tempResult[2])
 		}
-		return map[string][]int{user: {direct + nextLevelCount, MaxIntSlice(distances) + 1}}
+		return map[string][]int{user: {direct, direct + nextLevelCount, maxIntSlice(distances) + 1}}
 	} else {
-		return map[string][]int{user: {0, 0}}
+		return map[string][]int{user: {direct, 0, 0}}
 	}
+}
+
+func writeCSV(path string, res map[string][]int) {
+	csvFile, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE, 0777)
+	if err != nil {
+		Logger.Fatalln(err)
+	}
+
+	writer := csv.NewWriter(csvFile)
+	writer.Write([]string{"user", "direct", "total", "max_distance"})
+	for k, v := range res {
+		writer.Write(append([]string{k}, arrayToString(v)...))
+	}
+	writer.Flush()
+	csvFile.Close()
 }
