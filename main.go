@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/csv"
+	"flag"
 	"fmt"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
@@ -11,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"sync"
+	"time"
 )
 
 var Commit string = "Not committed"
@@ -34,13 +36,23 @@ func main() {
 	fmt.Printf(Art)
 	fmt.Printf("Git revision %s\n", Commit)
 	fmt.Printf("Built @ %s\n", Time)
-	writeMaps("./test_data/in.csv", 0, 1, true)
+
+	var refereeFlag = flag.Int("refereeColumn", 1, "下线所在列")
+	var refererFlag = flag.Int("refererColumn", 2, "上线所在列")
+	var headerFlag = flag.Bool("hasHeader", true, "是否含表头")
+	var fileFlag = flag.String("file", "in.csv", "输入文件路径")
+	flag.Parse()
+
+	Logger.Println("LevelMan started @", time.Now().Format(time.RFC850))
+	writeMaps(*fileFlag, *refererFlag-1, *refereeFlag-1, *headerFlag)
 	directMap := countDirect()
-	Logger.Println(directMap)
 	res := countTotal(directMap)
-	Logger.Println(res)
-	writeCSV("./test_data/out.csv", res)
+
+	writeCSV(fmt.Sprintf("./%s_out.csv", *fileFlag), res)
+	Logger.Println("Result write to", fmt.Sprintf("%s_out.csv", *fileFlag))
+	Logger.Println("LevelMan stopped @", time.Now().Format(time.RFC850))
 }
+
 func arrayToString(a []int) []string {
 	var newSlice []string
 	for _, v := range a {
