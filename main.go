@@ -162,6 +162,25 @@ func countMemberTotal(directMap map[string]int, user string, used []string, maxD
 	}
 }
 
+func getNextLevel(user string) []string {
+	if nxtLevel, ok := ReffMap[user]; ok {
+		return nxtLevel
+	} else {
+		return []string{}
+	}
+}
+
+func countMemberTotal2(directMap map[string]int, user string) int32 {
+	var total int32
+	nxtLevel := []string{user}
+	for len(nxtLevel) > 0 {
+		nxtLevel = append(nxtLevel, getNextLevel(nxtLevel[0])...)
+		slices.Delete(nxtLevel, 0, 0)
+		total += 1
+	}
+	return total
+}
+
 func writeCSV(path string, res map[string][]int) {
 	csvFile, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE, 0777)
 	if err != nil {
