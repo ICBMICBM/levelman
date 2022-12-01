@@ -2,3 +2,5 @@
 test_data
 target
 .DS_Store
+cpu.pprof
+mem.pprof

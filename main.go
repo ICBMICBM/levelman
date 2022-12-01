@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"runtime/pprof"
 	"strconv"
 	"sync"
 	"time"
@@ -41,14 +42,35 @@ func main() {
 	var refererFlag = flag.Int("refererColumn", 2, "上线所在列")
 	var headerFlag = flag.Bool("hasHeader", true, "是否含表头")
 	var fileFlag = flag.String("file", "in.csv", "输入文件路径")
-	flag.Parse()
-
 	Logger.Println("LevelMan started @", time.Now().Format(time.RFC850))
+
+	var cpuProfile = flag.String("cpuprofile", "", "write cpu profile to file")
+	var memProfile = flag.String("memprofile", "", "write mem profile to file")
+	flag.Parse()
+	//采样cpu运行状态
+	if *cpuProfile != "" {
+		f, err := os.Create(*cpuProfile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
+
+	if *memProfile != "" {
+		f, err := os.Create(*memProfile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		pprof.WriteHeapProfile(f)
+		f.Close()
+	}
+
 	writeMaps(*fileFlag, *refererFlag-1, *refereeFlag-1, *headerFlag)
 	DirectMap = countDirect()
 	res := countTotal()
-
 	writeCSV(fmt.Sprintf("./%s_out.csv", *fileFlag), res)
+
 	Logger.Println("Result write to", fmt.Sprintf("%s_out.csv", *fileFlag))
 	Logger.Println("LevelMan stopped @", time.Now().Format(time.RFC850))
 }
@@ -116,35 +138,22 @@ func getNextLevel(user []string) []string {
 	return nxtLevel
 }
 
-func countDistinctUser(strSlice []string) int32 {
-	keys := make(map[string]bool)
-	var list []string
-
-	for _, entry := range strSlice {
-		if _, value := keys[entry]; !value {
-			keys[entry] = true
-			list = append(list, entry)
-		}
-	}
-	return int32(len(list)) - 1
-}
-
 func countMemberTotal(user string) map[string][]int32 {
-	if user == "5182" {
-		Logger.Println("reffmap:", ReffMap["5182"])
-	}
 	var maxDistance int32
 	var used []string
+	var total int
 	nxtLevel := []string{user}
 	for len(nxtLevel) > 0 {
 		if slices.Contains(used, nxtLevel[0]) {
-			Logger.Fatalln("Loop detected @ user:", user, ", path is", used)
+			Logger.Println("Loop detected @ user:", user)
+			return map[string][]int32{user: {DirectMap[user], 0, 0}}
 		}
 		used = append(used, nxtLevel...)
 		nxtLevel = getNextLevel(nxtLevel)
+		total += len(nxtLevel)
 		maxDistance += 1
 	}
-	return map[string][]int32{user: {DirectMap[user], countDistinctUser(used), maxDistance - 1}}
+	return map[string][]int32{user: {DirectMap[user], int32(total), maxDistance - 1}}
 }
 
 func countTotalProducer(pipe chan<- map[string][]int32) {
