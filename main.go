@@ -4,8 +4,9 @@ import (
 	"encoding/csv"
 	"flag"
 	"fmt"
+	"github.com/vbauerster/mpb/v8"
+	"github.com/vbauerster/mpb/v8/decor"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"io"
 	"log"
 	"os"
@@ -33,6 +34,10 @@ var ReffMap = make(map[string][]string) // referer -> referee
 var InvMap = make(map[string]string)    // referee -> referer
 var DirectMap = make(map[string]int32)  // referer -> direct referral count
 
+var usedUserPool = sync.Pool{
+	New: func() interface{} { return make([]string, 4096) },
+}
+
 func main() {
 	fmt.Printf(Art)
 	fmt.Printf("Git revision %s\n", Commit)
@@ -47,7 +52,7 @@ func main() {
 	var cpuProfile = flag.String("cpuprofile", "", "write cpu profile to file")
 	var memProfile = flag.String("memprofile", "", "write mem profile to file")
 	flag.Parse()
-	//采样cpu运行状态
+
 	if *cpuProfile != "" {
 		f, err := os.Create(*cpuProfile)
 		if err != nil {
@@ -68,11 +73,25 @@ func main() {
 
 	writeMaps(*fileFlag, *refererFlag-1, *refereeFlag-1, *headerFlag)
 	DirectMap = countDirect()
-	res := countTotal()
+
+	progressBarContainer := mpb.New()
+	progressBar := progressBarContainer.New(int64(len(ReffMap)),
+		mpb.BarStyle().
+			Lbound("╢").
+			Filler("▌").
+			Tip("▌").
+			Padding("░").
+			Rbound("╟"),
+		mpb.AppendDecorators(decor.Percentage()),
+	)
+
+	res := countTotal(progressBar)
+	progressBar.Wait()
 	writeCSV(fmt.Sprintf("./%s_out.csv", *fileFlag), res)
 
 	Logger.Println("Result write to", fmt.Sprintf("%s_out.csv", *fileFlag))
 	Logger.Println("LevelMan stopped @", time.Now().Format(time.RFC850))
+
 }
 
 func arrayToString(a []int32) []string {
@@ -138,13 +157,28 @@ func getNextLevel(user []string) []string {
 	return nxtLevel
 }
 
+func findIntersect(strs1 []string, strs2 []string) bool {
+	intersectMap := map[string]bool{}
+	for _, v := range strs1 {
+		intersectMap[v] = true
+	}
+	for _, v := range strs2 {
+		if intersectMap[v] {
+			intersectMap = nil
+			return true
+		}
+	}
+	intersectMap = nil
+	return false
+}
+
 func countMemberTotal(user string) map[string][]int32 {
 	var maxDistance int32
-	var used []string
+	used := usedUserPool.Get().([]string)
 	var total int
 	nxtLevel := []string{user}
 	for len(nxtLevel) > 0 {
-		if slices.Contains(used, nxtLevel[0]) {
+		if findIntersect(used, nxtLevel) {
 			Logger.Println("Loop detected @ user:", user)
 			return map[string][]int32{user: {DirectMap[user], 0, 0}}
 		}
@@ -153,6 +187,8 @@ func countMemberTotal(user string) map[string][]int32 {
 		total += len(nxtLevel)
 		maxDistance += 1
 	}
+	used, nxtLevel = nil, nil
+	usedUserPool.Put(used)
 	return map[string][]int32{user: {DirectMap[user], int32(total), maxDistance - 1}}
 }
 
@@ -172,19 +208,20 @@ func countTotalProducer(pipe chan<- map[string][]int32) {
 	close(pipe)
 }
 
-func countTotalConsumer(pipe <-chan map[string][]int32, result chan<- map[string][]int32) {
+func countTotalConsumer(pipe <-chan map[string][]int32, result chan<- map[string][]int32, bar *mpb.Bar) {
 	totalResult := make(map[string][]int32)
 	for res := range pipe {
 		maps.Copy(totalResult, res)
+		bar.Increment()
 	}
 	result <- totalResult
 }
 
-func countTotal() map[string][]int32 {
+func countTotal(bar *mpb.Bar) map[string][]int32 {
 	pipe := make(chan map[string][]int32)
 	result := make(chan map[string][]int32)
 	go countTotalProducer(pipe)
-	go countTotalConsumer(pipe, result)
+	go countTotalConsumer(pipe, result, bar)
 	return <-result
 }
 
