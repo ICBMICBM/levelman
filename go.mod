@@ -1,6 +1,6 @@
 module levelman
 
-go 1.19
+go 1.18
 
 require (
 	github.com/vbauerster/mpb/v8 v8.1.4

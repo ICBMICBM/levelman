@@ -43,14 +43,14 @@ func main() {
 	fmt.Printf("Git revision %s\n", Commit)
 	fmt.Printf("Built @ %s\n", Time)
 
-	var refereeFlag = flag.Int("refereeColumn", 1, "下线所在列")
-	var refererFlag = flag.Int("refererColumn", 2, "上线所在列")
-	var headerFlag = flag.Bool("hasHeader", true, "是否含表头")
-	var fileFlag = flag.String("file", "in.csv", "输入文件路径")
+	var refereeFlag = flag.Int("ee", 1, "下线所在列")
+	var refererFlag = flag.Int("er", 2, "上线所在列")
+	var headerFlag = flag.Bool("h", true, "是否含表头")
+	var fileFlag = flag.String("f", "in.csv", "输入文件路径")
 	Logger.Println("LevelMan started @", time.Now().Format(time.RFC850))
 
-	var cpuProfile = flag.String("cpuprofile", "", "write cpu profile to file")
-	var memProfile = flag.String("memprofile", "", "write mem profile to file")
+	var cpuProfile = flag.String("cpu", "", "write cpu profile to file")
+	var memProfile = flag.String("mem", "", "write mem profile to file")
 	flag.Parse()
 
 	if *cpuProfile != "" {
