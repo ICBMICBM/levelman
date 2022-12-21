@@ -1,5 +1,9 @@
-# levelman readme  
-## how to use
+# 层级分析工具
+## 改动
+0.0.1 首次release  
+0.0.2 使用hashMap来进行循环检测, 去除进度条
+
+## 如何使用
 
 ```
 ./levelman_linux_amd64 --help
