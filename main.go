@@ -8,8 +8,10 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"runtime/pprof"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -42,7 +44,7 @@ type noDup struct {
 
 func (n *noDup) Test(s []string) bool {
 	for _, v := range s {
-		if _, ok := n.kv[v]; ok {
+		if n.kv[v] {
 			return true
 		}
 	}
@@ -96,9 +98,8 @@ func main() {
 	DirectMap = countDirect()
 
 	res := countTotal()
-	writeCSV(fmt.Sprintf("./%s_out.csv", *fileFlag), res)
+	writeCSV(*fileFlag, res)
 
-	Logger.Println("Result write to", fmt.Sprintf("%s_out.csv", *fileFlag))
 	Logger.Println("LevelMan stopped @", time.Now().Format(time.RFC850))
 }
 
@@ -111,7 +112,9 @@ func arrayToString(a []int32) []string {
 }
 
 func writeMaps(path string, refererColumn int, refereeColumn int, hasHeader bool) {
-	csvFile, err := os.Open(path)
+	absPath, err := filepath.Abs(path)
+	Logger.Println("absPath is", absPath)
+	csvFile, err := os.Open(absPath)
 	if err != nil {
 		Logger.Fatalln(err)
 	}
@@ -219,7 +222,8 @@ func countTotal() map[string][]int32 {
 }
 
 func writeCSV(path string, res map[string][]int32) {
-	csvFile, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE, 0777)
+	dir, fileName, ext := filepath.Dir(path), filepath.Base(path), filepath.Ext(path)
+	csvFile, err := os.OpenFile(filepath.Join(dir, strings.TrimSuffix(fileName, ext)+"_out.csv"), os.O_WRONLY|os.O_CREATE, 0777)
 	if err != nil {
 		Logger.Fatalln(err)
 	}
@@ -231,4 +235,5 @@ func writeCSV(path string, res map[string][]int32) {
 	}
 	writer.Flush()
 	csvFile.Close()
+	Logger.Println("Writing result to", csvFile.Name())
 }
